@@ -30,6 +30,7 @@ class Message:
     request_id: str
     created_at: str
     agent_id: Optional[str] = None
+    metadata: Optional[dict] = None
 
 
 @dataclass
@@ -119,7 +120,8 @@ class Agent:
                             content=msg_data["content"],
                             request_id=msg_data["request_id"],
                             created_at=msg_data["created_at"],
-                            agent_id=msg_data.get("agent_id")
+                            agent_id=msg_data.get("agent_id"),
+                            metadata=msg_data.get("metadata") or {}
                         )
                         await self._handle_message(message)
             else:
@@ -139,14 +141,57 @@ class Agent:
             handler = self.message_handler or self._default_message_handler
             response_content = handler(message)
 
+            # Check if handler is async (returns a coroutine)
+            if asyncio.iscoroutine(response_content):
+                response_content = await response_content
+
             # If handler returns None, skip sending response
             if response_content is None:
                 return
 
-            # Send response
-            await self._respond_to_message(message.request_id, response_content)
+            # Check if there's a response_url in metadata (for talk endpoint)
+            if message.metadata and message.metadata.get("response_url"):
+                await self._respond_via_http(
+                    message.metadata["response_url"],
+                    message.metadata.get("request_id", message.request_id),
+                    response_content
+                )
+            else:
+                # Send response via normal message queue
+                await self._respond_to_message(message.request_id, response_content)
         except Exception as error:
             logger.error(f"Error handling message: {error}", exc_info=True)
+
+    async def _respond_via_http(self, response_url: str, request_id: str, content: str) -> None:
+        """
+        Send a response via HTTP POST to a response URL (for talk endpoint).
+
+        Args:
+            response_url: The URL to POST the response to
+            request_id: The request ID
+            content: The response content
+        """
+        if not self._client:
+            return
+
+        try:
+            payload = {
+                "request_id": request_id,
+                "content": content
+            }
+
+            response = await self._client.post(
+                response_url,
+                headers={
+                    "Content-Type": "application/json"
+                },
+                json=payload
+            )
+
+            if not response.is_success:
+                logger.error(f"HTTP response error: {response.status_code}")
+        except Exception as error:
+            logger.error(f"Network error sending HTTP response: {error}", exc_info=True)
 
     async def _respond_to_message(self, request_id: str, content: str) -> None:
         """
@@ -217,6 +262,70 @@ class Agent:
         except Exception as error:
             logger.error(f"Error sending message: {error}", exc_info=True)
             return False
+        finally:
+            if should_close:
+                await client.aclose()
+
+    async def talk_to_agent(
+        self,
+        target_agent_id: str,
+        content: str,
+        await_response: bool = True,
+        timeout: int = 60000
+    ) -> Optional[str]:
+        """
+        Send a message to a specific agent using the talk endpoint and optionally wait for response.
+
+        Args:
+            target_agent_id: Target agent ID
+            content: Message content
+            await_response: Whether to wait for response (default: True)
+            timeout: Timeout in milliseconds (default: 60000 = 60 seconds)
+
+        Returns:
+            Response content if await_response is True, None otherwise
+        """
+        # Use existing client if available, otherwise create a temporary one
+        if self._client:
+            client = self._client
+            should_close = False
+        else:
+            client = httpx.AsyncClient(timeout=float(timeout) / 1000 + 10)  # Add buffer for timeout
+            should_close = True
+
+        try:
+            payload = {
+                "content": content,
+                "await": await_response,
+                "timeout": timeout
+            }
+
+            response = await client.post(
+                f"{self.base_url}/api/agents/{target_agent_id}/talk",
+                headers={
+                    "Authorization": f"Bearer {self.api_key}",
+                    "Content-Type": "application/json"
+                },
+                json=payload
+            )
+
+            if not response.is_success:
+                logger.error(f"Talk endpoint error: {response.status_code}")
+                return None
+
+            data = response.json()
+            if not data.get("success"):
+                logger.error(f"Talk endpoint error: {data.get('error')}")
+                return None
+
+            # If await_response is True, return the response content
+            if await_response and data.get("data", {}).get("response"):
+                return data["data"]["response"]["content"]
+
+            return None
+        except Exception as error:
+            logger.error(f"Error talking to agent: {error}", exc_info=True)
+            return None
         finally:
             if should_close:
                 await client.aclose()

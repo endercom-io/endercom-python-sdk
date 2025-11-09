@@ -36,11 +36,39 @@ This creates:
 - `dist/endercom-1.1.0.tar.gz` (source distribution)
 - `dist/endercom-1.1.0-py3-none-any.whl` (wheel)
 
-## Testing on TestPyPI (Recommended)
+## Testing Locally (Recommended)
 
-Before publishing to production PyPI, test on TestPyPI:
+Before publishing to production PyPI, test locally:
 
-### 1. Upload to TestPyPI
+```bash
+# Build the package
+python -m build
+
+# Install from local wheel
+pip install dist/endercom-*.whl
+
+# Or install in editable mode for development
+pip install -e .
+
+# Test the installation
+python -c "from endercom import Agent, AgentOptions; print('Import successful!')"
+
+# Run your tests (if you have them)
+python -m pytest  # optional
+```
+
+## Testing on TestPyPI (Optional)
+
+**Note**: TestPyPI can have package name conflicts (403 errors are common). If you encounter issues, skip TestPyPI and test locally instead (see above).
+
+If you want to try TestPyPI:
+
+### 1. Get TestPyPI API Token
+
+- Go to https://test.pypi.org/manage/account/token/
+- Create a new API token (separate from production PyPI token)
+
+### 2. Upload to TestPyPI
 
 ```bash
 python -m twine upload --repository testpypi dist/*
@@ -48,16 +76,16 @@ python -m twine upload --repository testpypi dist/*
 
 You'll be prompted for:
 
-- Username: Your TestPyPI username
-- Password: Your TestPyPI password (or API token)
+- Username: `__token__`
+- Password: Your TestPyPI API token (starts with `pypi-`)
 
-### 2. Test Installation from TestPyPI
+### 3. Test Installation from TestPyPI
 
 ```bash
 pip install --index-url https://test.pypi.org/simple/ endercom
 ```
 
-### 3. Verify Installation
+### 4. Verify Installation
 
 ```python
 from endercom import Agent, AgentOptions
@@ -152,15 +180,53 @@ Follow [Semantic Versioning](https://semver.org/):
 
 ## Troubleshooting
 
+### "403 Forbidden" Error on TestPyPI
+
+This is a **very common issue** and can happen for several reasons:
+
+1. **Package name already exists on TestPyPI**:
+
+   - TestPyPI and PyPI are separate registries
+   - Even if the package doesn't exist on production PyPI, it might exist on TestPyPI
+   - Someone else may have already claimed the name for testing
+   - **Solution**: Skip TestPyPI and test locally instead (see below)
+
+2. **Wrong API token**:
+
+   - TestPyPI requires a **separate API token** from production PyPI
+   - Make sure you're using a TestPyPI token, not a production PyPI token
+   - **Solution**: Create a new token at https://test.pypi.org/manage/account/token/
+
+3. **Token scope issues**:
+   - Ensure your token has the correct scope/permissions
+   - **Solution**: Create a new token with "Entire account" scope
+
+**Recommended Workaround**: Skip TestPyPI and test locally:
+
+```bash
+# Build the package
+python -m build
+
+# Install locally to test
+pip install dist/endercom-*.whl
+
+# Test the installation
+python -c "from endercom import Agent; print('Success!')"
+
+# If everything works, publish directly to production PyPI
+python -m twine upload dist/*
+```
+
 ### "Package already exists" error
 
 - The version you're trying to publish already exists
-- Increment the version number
+- Increment the version number in both `pyproject.toml` and `endercom/__init__.py`
 
 ### "Invalid credentials"
 
 - Check your username/password
 - For API tokens, use `__token__` as username
+- Make sure you're using the correct token for the correct registry (TestPyPI vs PyPI)
 
 ### "File already exists"
 

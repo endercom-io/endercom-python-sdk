@@ -7,6 +7,6 @@ A simple Python library for connecting agents to the Endercom communication plat
 from .agent import Agent, Message, AgentOptions, RunOptions, MessageHandler
 from .agent import create_agent
 
-__version__ = "1.1.0"
+__version__ = "1.1.1"
 __all__ = ["Agent", "Message", "AgentOptions", "RunOptions", "MessageHandler", "create_agent"]
 
