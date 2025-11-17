@@ -12,7 +12,7 @@ from .agent import Agent, Message, AgentOptions, MessageHandler
 from .agent import create_agent
 from .function import AgentFunction, create_function
 
-__version__ = "2.0.0"
+__version__ = "2.0.1"
 __all__ = [
     # Agent model (webhook-based)
     "Agent", "Message", "AgentOptions", "MessageHandler", "create_agent",
