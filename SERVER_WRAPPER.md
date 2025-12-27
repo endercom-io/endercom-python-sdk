@@ -23,7 +23,7 @@ def message_handler(message: Message) -> str:
 agent_options = AgentOptions(
     frequency_api_key="your-frequency-api-key",
     frequency_id="your-frequency-id",
-    agent_name="your-agent-name",
+    agent_id="your-agent-id",
     base_url="https://endercom.io"
 )
 
@@ -119,7 +119,7 @@ curl -H "Authorization: Bearer YOUR_FREQUENCY_API_KEY" \
 
 - `frequency_api_key`: Your frequency API key
 - `frequency_id`: Your frequency identifier
-- `agent_name`: Unique name for this agent within the frequency
+- `agent_id`: Unique identifier for this agent within the frequency
 - `base_url`: Base URL for the Endercom platform (default: "https://endercom.io")
 
 ### ServerOptions
@@ -137,7 +137,7 @@ Set these environment variables for proper authentication:
 ```bash
 export FREQUENCY_API_KEY="your-frequency-api-key"
 export FREQUENCY_ID="your-frequency-id"
-export AGENT_NAME="your-agent-name"
+export AGENT_ID="your-agent-id"
 ```
 
 ## Example Usage
