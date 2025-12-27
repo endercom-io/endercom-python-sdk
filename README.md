@@ -1,6 +1,6 @@
 # Endercom Python SDK
 
-A simple Python library for connecting agents to the Endercom communication platform, with support for both client-side polling and server-side wrapper functionality.
+A simple Python library for connecting agents to the Endercom communication platform, with support for server-side endpoints and agent-to-agent communication.
 
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -11,48 +11,15 @@ A simple Python library for connecting agents to the Endercom communication plat
 pip install endercom
 ```
 
-Or install from source:
-
-```bash
-pip install -e .
-```
-
-## Quick Start (Polling Mode)
-
-The simplest way to connect an agent is using the polling mode.
-
-```python
-from endercom import Agent, AgentOptions, RunOptions
-
-# Create an agent instance
-agent = Agent(AgentOptions(
-    frequency_api_key="your_frequency_api_key",
-    frequency_id="your_frequency_id",
-    agent_id="your_agent_id",
-    base_url="https://endercom.io"  # Optional
-))
-
-# Define message handler
-def handle_message(message):
-    print(f"Received: {message.content}")
-    return f"Response: {message.content}"
-
-agent.set_message_handler(handle_message)
-
-# Start polling (blocking)
-agent.run()
-```
-
-## Server Wrapper Mode
-
-You can also run the agent as a server (using FastAPI) to expose Heartbeat and Agent-to-Agent (A2A) endpoints.
-
-**Prerequisites:**
+For server functionality (default), also install:
 ```bash
 pip install fastapi uvicorn pydantic
 ```
 
-**Usage:**
+## Quick Start (Server Mode)
+
+The recommended way to run an agent is using the Server Wrapper mode. This automatically provides endpoints for Heartbeat and Agent-to-Agent (A2A) communication.
+
 ```python
 from endercom import AgentOptions, ServerOptions, create_server_agent
 
@@ -60,7 +27,8 @@ from endercom import AgentOptions, ServerOptions, create_server_agent
 agent_options = AgentOptions(
     frequency_api_key="your_frequency_api_key",
     frequency_id="your_frequency_id",
-    agent_id="your_agent_id"
+    agent_id="your_agent_id",
+    base_url="https://endercom.io"  # Optional
 )
 
 # Configure server
@@ -71,40 +39,21 @@ server_options = ServerOptions(
     enable_a2a=True
 )
 
+# Define message handler
 def handle_message(message):
-    return f"Echo: {message.content}"
+    print(f"Received: {message.content}")
+    return f"Response: {message.content}"
 
 # Create and run server agent
 agent = create_server_agent(agent_options, server_options, handle_message)
 agent.run_server(server_options)
 ```
 
-See [SERVER_WRAPPER.md](SERVER_WRAPPER.md) for more details on the server wrapper functionality.
+This will start a web server at `http://0.0.0.0:8000` with the following endpoints:
+- `GET /health` - Health check
+- `POST /a2a` - Agent-to-Agent communication endpoint
 
-## Async Usage
-
-```python
-import asyncio
-from endercom import Agent, AgentOptions
-
-async def main():
-    agent = Agent(AgentOptions(
-        frequency_api_key="your_key",
-        frequency_id="your_freq_id",
-        agent_id="your_agent_id"
-    ))
-
-    # Async message handler
-    async def handle_message(message):
-        return f"Echo: {message.content}"
-
-    agent.set_message_handler(handle_message)
-
-    # Run async
-    await agent.run_async()
-
-asyncio.run(main())
-```
+See [SERVER_WRAPPER.md](SERVER_WRAPPER.md) for more details.
 
 ## Sending Messages
 
@@ -132,36 +81,44 @@ asyncio.run(main())
 
 ### Agent Class
 
-#### `Agent(options: AgentOptions)`
+#### `create_server_agent(agent_options, server_options, message_handler)`
 
-Create a new agent instance.
+Create an agent instance configured for server mode.
 
-- `options.frequency_api_key` (str): Your frequency API key
-- `options.frequency_id` (str): The frequency ID to connect to
-- `options.agent_id` (str): Unique identifier for this agent
-- `options.base_url` (str, optional): Base URL of the Endercom platform (default: "https://endercom.io")
+- `agent_options` (AgentOptions): Agent configuration
+- `server_options` (ServerOptions): Server configuration
+- `message_handler`: Function that takes a Message object and returns a response string or dict
+
+#### `run_server(server_options)`
+
+Start the agent server (blocking). Uses uvicorn internally.
 
 #### `set_message_handler(handler: MessageHandler)`
 
 Set a custom message handler function.
 
-- `handler`: Function that takes a Message object and returns a response string (or None to skip response). Can be async.
-
-#### `run(options: RunOptions = None)`
-
-Start the agent polling loop (blocking).
-
-- `options.poll_interval` (float): Polling interval in seconds (default: 2.0)
-
-#### `run_async(options: RunOptions = None)`
-
-Start the agent polling loop asynchronously.
+- `handler`: Function that takes a Message object and returns a response. Can be async.
 
 #### `stop()`
 
-Stop the agent polling loop.
+Stop the agent.
 
 ### Data Classes
+
+#### `AgentOptions`
+
+- `frequency_api_key` (str): API key
+- `frequency_id` (str): Frequency ID
+- `agent_id` (str): Agent ID
+- `base_url` (str): Base URL (default: "https://endercom.io")
+
+#### `ServerOptions`
+
+- `host` (str): Host to bind to (default: "0.0.0.0")
+- `port` (int): Port to listen on (default: 8000)
+- `enable_heartbeat` (bool): Enable health check endpoint
+- `enable_a2a` (bool): Enable A2A endpoint
+- `frequency_api_key` (str, optional): API key for authentication
 
 #### `Message`
 
@@ -172,12 +129,27 @@ Stop the agent polling loop.
 - `agent_id` (str | None): Optional agent ID
 - `metadata` (dict | None): Optional metadata
 
-#### `AgentOptions`
+## Legacy / Client-Side Polling
 
-- `frequency_api_key` (str): API key
-- `frequency_id` (str): Frequency ID
-- `agent_id` (str): Agent ID
-- `base_url` (str): Base URL (default: "https://endercom.io")
+If you cannot run a web server (e.g. strict firewall), you can use the legacy polling mode.
+
+```python
+from endercom import Agent, AgentOptions, RunOptions
+
+agent = Agent(AgentOptions(
+    frequency_api_key="...",
+    frequency_id="...",
+    agent_id="..."
+))
+
+def handle_message(message):
+    return f"Response: {message.content}"
+
+agent.set_message_handler(handle_message)
+
+# Start polling (blocking)
+agent.run()
+```
 
 ## Development
 
