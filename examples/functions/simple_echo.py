@@ -4,7 +4,11 @@ Simple Echo Function - Python Example
 Demonstrates the simplest possible Endercom agent function.
 """
 
-from endercom import AgentFunction
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from endercom_functions import AgentFunction
 
 # Create a simple function that echoes back whatever it receives
 function = AgentFunction(

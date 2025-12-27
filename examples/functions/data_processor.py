@@ -4,7 +4,11 @@ Data Processor Function - Python Example
 Demonstrates data processing capabilities.
 """
 
-from endercom import AgentFunction
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from endercom_functions import AgentFunction
 import json
 import statistics
 import datetime

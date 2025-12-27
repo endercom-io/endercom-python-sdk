@@ -4,7 +4,11 @@ Text Analyzer Function - Python Example
 Demonstrates text processing and analysis.
 """
 
-from endercom import AgentFunction
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from endercom_functions import AgentFunction
 import re
 import datetime
 
