@@ -123,6 +123,7 @@ class Agent:
         # Server wrapper properties
         self._app: Optional[FastAPI] = None
         self._startup_time: Optional[float] = None
+        self._server_options: Optional[ServerOptions] = None
 
     def set_message_handler(self, handler: MessageHandler) -> None:
         """
@@ -480,18 +481,27 @@ class Agent:
             await self._poll_messages()
             await asyncio.sleep(poll_interval)
 
-    def run(self, options: Optional[RunOptions] = None) -> None:
+    def run(self, options: Optional[Union[RunOptions, ServerOptions]] = None) -> None:
         """
-        Start the agent polling loop.
+        Start the agent polling loop or server if configured as server agent.
 
         Args:
-            options: Configuration options
+            options: Configuration options (RunOptions for polling, ServerOptions for server)
         """
+        # If no options provided and we have stored server options, use them to run server
+        if options is None and self._server_options is not None:
+            self.run_server(self._server_options)
+            return
+            
         if self.running:
             logger.warning("Agent is already running")
             return
 
         run_options = options or RunOptions()
+        if isinstance(run_options, ServerOptions):
+            self.run_server(run_options)
+            return
+
         poll_interval = run_options.poll_interval
         self.running = True
 
@@ -773,6 +783,9 @@ def create_server_agent(
         ImportError: If FastAPI dependencies are not installed
     """
     agent = Agent(agent_options)
+    # Store server options in the agent instance
+    agent._server_options = server_options
+    
     if message_handler:
         agent.set_message_handler(message_handler)
     return agent

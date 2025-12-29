@@ -52,7 +52,7 @@ def handle_message(message):
 
 # Create and run server agent
 agent = create_server_agent(agent_options, server_options, handle_message)
-agent.run_server(server_options)
+agent.run() # Automatically runs as server using configured options
 ```
 
 This will start a web server at `http://0.0.0.0:8000` with the following endpoints:
