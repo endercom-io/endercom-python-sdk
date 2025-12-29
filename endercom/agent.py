@@ -117,6 +117,8 @@ class Agent:
         self.running = False
         self._poll_task: Optional[asyncio.Task] = None
         self._client: Optional[httpx.AsyncClient] = None
+        self._agents_cache: List[Dict[str, Any]] = []
+        self._agents_cache_time: float = 0
 
         # Server wrapper properties
         self._app: Optional[FastAPI] = None
@@ -143,6 +145,49 @@ class Agent:
         """
         logger.info(f"received: {message.content}")
         return f"Echo: {message.content}"
+
+    async def get_agents(self, force_refresh: bool = False) -> List[Dict[str, Any]]:
+        """
+        Get list of agents in the frequency, using cache if available.
+        
+        Returns:
+            List of agent dictionaries containing 'agent_id', 'endpoint', etc.
+        """
+        current_time = time.time()
+        # Use cache if valid (60 seconds TTL)
+        if not force_refresh and self._agents_cache and (current_time - self._agents_cache_time < 60):
+            return self._agents_cache
+
+        # Need a client
+        should_close = False
+        if self._client:
+            client = self._client
+        else:
+            client = httpx.AsyncClient(timeout=10.0)
+            should_close = True
+
+        try:
+            response = await client.get(
+                f"{self.base_url}/api/{self.frequency_id}/agents",
+                headers={
+                    "Authorization": f"Bearer {self.frequency_api_key}",
+                    "Content-Type": "application/json"
+                }
+            )
+            
+            if response.is_success:
+                data = response.json()
+                if data.get("success"):
+                    self._agents_cache = data.get("data", {}).get("agents", [])
+                    self._agents_cache_time = current_time
+                    return self._agents_cache
+            return []
+        except Exception as error:
+            logger.error(f"Error fetching agents: {error}")
+            return []
+        finally:
+            if should_close:
+                await client.aclose()
 
     async def _poll_messages(self) -> None:
         """Internal method to poll for messages."""
@@ -345,6 +390,54 @@ class Agent:
             should_close = True
 
         try:
+            # 1. Try decentralized/direct routing first
+            try:
+                agents = await self.get_agents()
+                target = next((a for a in agents if a.get("agent_id") == target_agent_id), None)
+                endpoint = target.get("endpoint") if target else None
+                
+                if endpoint:
+                    endpoint = endpoint.rstrip('/')
+                    # Ensure endpoint ends with /a2a
+                    if not endpoint.endswith("/a2a"):
+                        endpoint += "/a2a"
+                    
+                    # Send direct A2A request
+                    response = await client.post(
+                        endpoint,
+                        headers={
+                            "Authorization": f"Bearer {self.frequency_api_key}",
+                            "Content-Type": "application/json"
+                        },
+                        json={
+                            "content": content,
+                            "timeout": timeout
+                        }
+                    )
+                    
+                    if response.is_success:
+                        # Success! Parse response
+                        try:
+                            data = response.json()
+                            # Handle SDK wrapper response {success: true, response: ...}
+                            if isinstance(data, dict) and "response" in data:
+                                if await_response:
+                                    return str(data["response"])
+                                return None
+                            # Handle raw JSON response
+                            if await_response:
+                                return str(data)
+                        except:
+                            # Handle plain text response
+                            if await_response:
+                                return response.text
+                        return None
+                    else:
+                        logger.warning(f"Direct routing failed ({response.status_code}), falling back to platform")
+            except Exception as e:
+                logger.warning(f"Direct routing error: {e}, falling back to platform")
+
+            # 2. Fallback to Platform API Routing
             payload = {
                 "content": content,
                 "await": await_response,
