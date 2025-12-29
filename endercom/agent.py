@@ -12,7 +12,7 @@ import signal
 import sys
 import time
 import os
-from typing import Callable, Optional, Dict, Any
+from typing import Callable, Optional, Dict, Any, List, Union
 from dataclasses import dataclass
 
 try:
